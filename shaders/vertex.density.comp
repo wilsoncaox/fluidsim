@@ -1,0 +1,56 @@
+#version 450
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+struct ParticleData {
+    vec4 position;
+    vec4 velocity;
+    vec4 density;
+    vec4 predicted_position;
+};
+
+layout(std430, set = 1, binding = 1) buffer Read {
+    ParticleData[] in_particles;
+} read;
+
+
+layout(std430, set = 0, binding = 1) buffer Write {
+    ParticleData[] out_particles;
+} write;
+
+
+const float mass = 1.0f;
+const float PI = 3.1415926538;
+const uint particle_count = 20000;
+const float smoothing_radius = 0.25f;
+
+float poly6_kernel(float dst) {
+    if (dst >= smoothing_radius) return 0;
+    float scale = 315.0 / (64.0 * PI * pow(smoothing_radius, 9.0));
+    float value = (smoothing_radius * smoothing_radius - dst * dst);
+    return scale * value * value * value;
+}
+
+float calculate_density(in vec3 position) {
+    float density = 0;
+
+    for (uint i = 0; i < particle_count; i++) {
+        float dst = distance(position, read.in_particles[i].predicted_position.xyz);
+        density += mass * poly6_kernel(dst);
+    }
+
+    return density;
+}
+
+void main() {
+    uint id = gl_GlobalInvocationID.x;
+    if (id >= particle_count) {
+        return;
+    }
+
+    ParticleData current = read.in_particles[id];
+
+    float density = calculate_density(current.predicted_position.xyz);
+    current.density.x = density;
+    write.out_particles[id] = current;
+}

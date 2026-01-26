@@ -1,0 +1,128 @@
+#version 450
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+struct ParticleData {
+    vec4 position;
+    vec4 velocity;
+    vec4 density;
+    vec4 predicted_position;
+};
+
+layout(std430, set = 1, binding = 1) buffer Read {
+    ParticleData[] in_particles;
+} read;
+
+
+layout(std430, set = 0, binding = 1) buffer Write {
+    ParticleData[] out_particles;
+} write;
+
+const float PI = 3.1415926538;
+const uint particle_count = 20000;
+
+const float mass = 1.0f;
+const float smoothing_radius = 0.25f;
+const float gravity = -9.8f;
+const float damping = 0.95f;
+const float time = 0.01f;
+
+const float target_density = 1.0f;
+const float pressure_multiplier = 5.0f;
+
+float PHI = 1.61803398874989484820459;
+
+float spiky_gradient(float dst) {
+    if (dst >= smoothing_radius) return 0;
+
+    float scale = -45.0 / (PI * pow(smoothing_radius, 6));
+    float value = pow(smoothing_radius - dst, 2);
+    return scale * value;
+}
+
+float density_to_pressure(float density) {
+    return (density - target_density) * pressure_multiplier;
+}
+
+vec3 calculate_pressure_force(uint particle_id) {
+    vec3 force = vec3(0.0);
+
+    ParticleData a = read.in_particles[particle_id];
+    float rho_a = max(a.density.x, 1e-4);
+    float p_a   = density_to_pressure(rho_a);
+
+    for (uint i = 0; i < particle_count; i++) {
+        if (i == particle_id) continue;
+
+        ParticleData b = read.in_particles[i];
+        float rho_b = max(b.density.x, 1e-4);
+        float p_b   = density_to_pressure(rho_b);
+
+        vec3 r = a.predicted_position.xyz - b.predicted_position.xyz;
+        float len = length(r);
+        if (len >= smoothing_radius || len < 1e-5) continue;
+
+        vec3 grad = spiky_gradient(len) * (r / len);
+
+        force += mass * (
+            p_a / (rho_a * rho_a) +
+            p_b / (rho_b * rho_b)
+        ) * grad;
+    }
+
+    return -force;
+}
+
+void main() {
+    uint id = gl_GlobalInvocationID.x;
+    if (id >= particle_count) {
+        return;
+    }
+
+    ParticleData current = read.in_particles[id];
+
+    // Apply pressure forces
+    vec3 pressure_force = calculate_pressure_force(id);
+    vec3 acceleration = pressure_force;
+    acceleration.y += gravity;
+
+    current.velocity.xyz += acceleration * time;
+    current.velocity.xyz *= 0.995;
+
+    current.position += current.velocity * time;
+
+    current.density.y = acceleration.x; 
+    current.density.z = acceleration.y; 
+    current.density.w = acceleration.z;
+
+    float bound = 5.0f;
+
+    if (current.position.x > bound) {
+        current.position.x = bound;
+        current.velocity.x = -current.velocity.x * damping;
+    }
+    else if (current.position.x < -bound) {
+        current.position.x = -bound;
+        current.velocity.x = -current.velocity.x * damping;
+    }
+
+    if (current.position.y > bound) {
+        current.position.y = bound;
+        current.velocity.y = -current.velocity.y * damping;
+    }
+    else if (current.position.y < -bound) {
+        current.position.y = -bound;
+        current.velocity.y = -current.velocity.y * damping;
+    }
+
+    if (current.position.z > bound) {
+        current.position.z = bound;
+        current.velocity.z = -current.velocity.z * damping;
+    }
+    else if (current.position.z < -bound) {
+        current.position.z = -bound;
+        current.velocity.z = -current.velocity.z * damping;
+    }    
+
+    write.out_particles[id] = current;
+}

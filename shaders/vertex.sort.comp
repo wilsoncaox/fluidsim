@@ -1,0 +1,29 @@
+#version 450
+
+struct ParticleData {
+    vec4 position;
+    vec4 velocity;
+    vec4 density;
+    vec4 predicted_position;
+};
+
+layout(std430, set = 1, binding = 1) buffer Read {
+    ParticleData[] in_particles;
+} read;
+
+
+layout(std430, set = 0, binding = 1) buffer Write {
+    ParticleData[] out_particles;
+} write;
+
+layout(std430, binding = 0) buffer Histogram {
+    uint[] bucket;
+} histogram;
+
+void main() {
+     
+    
+         
+
+
+}
