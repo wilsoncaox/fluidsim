@@ -13,17 +13,18 @@ class Engine {
 
   private:
     void init_world();
-    void init_resources(Scene& scene);
 
     void display_frames(int* frames, float delta_time);
 
     Window window;
     VulkanContext context;
 
-    Scene scene;
-
     DescriptorHandler handler;
+
+    Scene scene; 
+
     Renderer renderer;
+    
 
     uint32_t current_frame = 0;
 };

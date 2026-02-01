@@ -23,6 +23,8 @@ void VulkanContext::reset() {
 }
 
 void VulkanContext::init(Window& window) {
+
+
   if (!active) {
     active = true;
 
@@ -32,6 +34,9 @@ void VulkanContext::init(Window& window) {
     pick_physical_device();
 
     init_device();
+
+    commandpool = std::make_unique<CommandPool>(device, queue, queue_index.index.value()); 
+
   } else {
     reset();
     active = false;

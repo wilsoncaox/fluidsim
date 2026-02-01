@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
+
 project(app)
 
 find_package(Vulkan REQUIRED)
@@ -8,6 +9,7 @@ set(GLFW_LIB glfw)
 set(TINYOBJ_PATH external/tinyobjloader)
 
 file(GLOB_RECURSE SOURCES ${PROJECT_SOURCE_DIR}/src/*.cpp)
+
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 
@@ -26,7 +28,7 @@ find_program(GLSLC_EXECUTABLE
         /usr/local/bin
 )
 
-file(GLOB_RECURSE GLSL_SOURCE_FILES
+file(GLOB_RECURSE GLSL_SOURCE_FILES CONFIGURE_DEPENDS
   "${PROJECT_SOURCE_DIR}/shaders/*.frag"
   "${PROJECT_SOURCE_DIR}/shaders/*.vert"
   "${PROJECT_SOURCE_DIR}/shaders/*.comp"

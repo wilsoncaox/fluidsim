@@ -1,0 +1,159 @@
+#version 450
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+struct ParticleData {
+    vec4 position;
+    vec4 velocity;
+    vec4 predicted_position;
+};
+
+layout(std430, set = 0, binding = 0) buffer Read {
+    ParticleData[] data;
+} read;
+
+
+layout(std430, set = 1, binding = 0) buffer Write {
+    ParticleData[] data;
+} write;
+
+layout(std430, set = 2, binding = 1) buffer Density {
+    float[] data;
+} density;
+
+layout(std430, set = 3, binding = 1) buffer Spatial {
+    uint[] data;
+} spatial;
+
+layout(push_constant) uniform PushConstant {
+    uint particle_count;
+} pc;
+
+const float PI = 3.1415926538;
+
+const float mass = 1.0f;
+const float smoothing_radius = 0.5;
+const float gravity = -9.8f;
+const float damping = 0.95f;
+const float time = 0.01f;
+
+const float target_density = 10.0f;
+const float pressure_multiplier = 0.1f;
+
+const int hashK1 = 15823;
+const int hashK2 = 9737333;
+const int hashK3 = 9737357;
+
+int grid_from_pos(float value) {
+    return int(ceil((2*value - smoothing_radius) / (2 * smoothing_radius)));
+}
+
+int key_from_position(int x, int y, int z) {
+    int hash = abs(x * hashK1 + y * hashK2 + z * hashK3);
+    int count = int(pc.particle_count);
+    int key = hash % count;
+    return key;
+}
+
+
+float spiky_gradient(float dst) {
+    if (dst >= smoothing_radius) return 0;
+
+    float scale = -45.0 / (PI * pow(smoothing_radius, 6));
+    float value = pow(smoothing_radius - dst, 2);
+    return scale * value;
+}
+
+float density_to_pressure(float density) {
+    return (density - target_density) * pressure_multiplier;
+}
+
+vec3 calculate_pressure_force(uint id) {
+    vec3 force = vec3(0.0);
+    ParticleData inital_particle = read.data[id];
+
+    int starting_x = grid_from_pos(inital_particle.predicted_position.x);
+    int starting_y = grid_from_pos(inital_particle.predicted_position.y);
+    int starting_z = grid_from_pos(inital_particle.predicted_position.z);
+    
+    float inital_pressure = density_to_pressure(density.data[id]); 
+
+    for (int x = -1; x <= 1; x++) {
+        for (int y = -1; y <= 1; y++) {
+            for (int z = -1; z <= 1; z++) {
+                uint start_index = spatial.data[key_from_position(starting_x + x, starting_y + y, starting_z + z)];        
+                for (uint i = start_index; i < pc.particle_count; i++) {
+                    ParticleData current = read.data[i];
+                    if (id == i) continue;
+                    if (current.position.w != read.data[start_index].position.w) break;
+
+                    vec3 dist = inital_particle.predicted_position.xyz - current.predicted_position.xyz;
+                    float len = length(dist);
+                    if (len <= 0) continue;
+                    
+                    vec3 grad = spiky_gradient(len) * (dist / len);
+                     
+                    float current_density = max(density.data[i], 0.001);
+                    float current_pressure = density_to_pressure(current_density);
+                    float shared_pressure = (current_pressure + inital_pressure) / 2;
+                    force += (mass * grad * shared_pressure) / current_density;
+                }
+            }
+        }
+    }
+
+    return -force;
+}
+
+void main() {
+    uint id = gl_GlobalInvocationID.x;
+    if (id >= pc.particle_count) {
+        return;
+    }
+
+    ParticleData current = read.data[id];
+
+    // Apply pressure forces
+    vec3 pressure_force = calculate_pressure_force(id);
+    vec3 acceleration = pressure_force;
+    acceleration.y += gravity;
+
+    current.predicted_position.w = acceleration.x;
+    current.velocity.w = acceleration.y;
+
+    current.velocity.xyz += acceleration * time;
+    current.velocity.xyz *= 0.995;
+
+    current.position += current.velocity * time;
+
+    float bound = 5.0f;
+
+    if (current.position.x > bound) {
+        current.position.x = bound;
+        current.velocity.x = -current.velocity.x * damping;
+    }
+    else if (current.position.x < -bound) {
+        current.position.x = -bound;
+        current.velocity.x = -current.velocity.x * damping;
+    }
+
+    if (current.position.y > bound) {
+        current.position.y = bound;
+        current.velocity.y = -current.velocity.y * damping;
+    }
+    else if (current.position.y < -bound) {
+        current.position.y = -bound;
+        current.velocity.y = -current.velocity.y * damping;
+    }
+
+    if (current.position.z > bound) {
+        current.position.z = bound;
+        current.velocity.z = -current.velocity.z * damping;
+    }
+    else if (current.position.z < -bound) {
+        current.position.z = -bound;
+        current.velocity.z = -current.velocity.z * damping;
+    }    
+
+    write.data[id] = current;
+}

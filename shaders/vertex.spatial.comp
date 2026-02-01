@@ -1,0 +1,65 @@
+#version 450
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+#define INT_MAX 2147483647
+
+struct ParticleData {
+    vec4 position;
+    vec4 velocity;
+    vec4 predicted_position;
+};
+
+layout(std430, set = 0, binding = 0) buffer Read {
+    ParticleData[] data;
+} read;
+
+layout(std430, set = 1, binding = 1) buffer Write {
+    uint[] data;
+} write;
+
+layout(push_constant) uniform PushConstant {
+    uint particle_count;
+} pc;
+
+const int hashK1 = 15823;
+const int hashK2 = 9737333;
+const int hashK3 = 9737357;
+
+
+const float smoothing_radius = 0.5;
+
+int key_from_hash(int hash) {
+    int count = int(pc.particle_count);
+    int k = hash % count;
+    return k;
+}
+
+int grid_from_pos(float value) {
+    return int(ceil((2*value - smoothing_radius) / (2 * smoothing_radius)));
+}
+
+int get_key(vec4 position) {
+    int grid_x = grid_from_pos(position.x);
+    int grid_y = grid_from_pos(position.y);
+    int grid_z = grid_from_pos(position.z);
+
+    int hash = grid_x * hashK1 + grid_y * hashK2 + grid_z*hashK3;
+    int key = key_from_hash(abs(hash));
+    return key;
+}
+
+void main() {
+
+    uint id = gl_GlobalInvocationID.x;
+    if (id >= pc.particle_count) {
+        return;
+    }
+
+    int key = get_key(read.data[id].position);
+
+    int prev_key = id == 0 ? INT_MAX : get_key(read.data[id - 1].position);
+    if (key != prev_key) {
+        write.data[key] = id; 
+    }
+}

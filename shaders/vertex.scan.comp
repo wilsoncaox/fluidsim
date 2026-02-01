@@ -1,0 +1,31 @@
+#version 450
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, set = 0, binding = 2) buffer Read {
+    uint[] data;
+} read;
+
+layout(std430, set = 1, binding = 2) buffer Write {
+    uint[] data;
+} write;
+
+
+layout(push_constant) uniform PushConstants {
+    uint particle_count;
+    uint offset;
+} pc;
+
+
+void main() {
+    uint id = gl_GlobalInvocationID.x;
+    if (id >= pc.particle_count) {
+        return;
+    }
+    uint val = read.data[id];
+    if (id >= pc.offset) {
+        val += read.data[id - pc.offset]; 
+    }
+   
+    write.data[id] = val;
+}

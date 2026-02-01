@@ -6,6 +6,7 @@
 
 #include <stdexcept>
 #include <vulkan/vulkan_core.h>
+#include <iostream>
 
 GraphicsPipeline::GraphicsPipeline(
   VkDevice device, 
@@ -23,7 +24,7 @@ GraphicsPipeline::~GraphicsPipeline() {
   }
 }
 
-void GraphicsPipeline::create(VkRenderPass renderpass, std::vector<VkDescriptorSetLayout>& descriptor_layouts) {
+void GraphicsPipeline::create(VkRenderPass renderpass, std::vector<VkDescriptorSetLayout>&& descriptor_layouts) {
   VkPipelineVertexInputStateCreateInfo vertexInputStage{};
   vertexInputStage.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
@@ -140,4 +141,12 @@ void GraphicsPipeline::create(VkRenderPass renderpass, std::vector<VkDescriptorS
 
 void GraphicsPipeline::bind_pipeline(VkCommandBuffer command_buffer) {
   vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+}
+
+void GraphicsPipeline::add_layout(VkDescriptorSetLayout layout) {
+  layouts.push_back(layout);
+}
+
+void GraphicsPipeline::add_set(VkDescriptorSet set) {
+  sets.push_back(set); 
 }

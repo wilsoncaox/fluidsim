@@ -35,6 +35,10 @@ Buffer::Buffer(
   }
   
   vkBindBufferMemory(device, buffer, memory, 0);
+
+  descriptor_buffer_info.buffer = buffer;
+  descriptor_buffer_info.offset = 0;
+  descriptor_buffer_info.range = size;
 }
 
 Buffer::~Buffer() {
@@ -73,4 +77,15 @@ void Buffer::copyBuffer(Buffer& src, CommandPool& command_pool) {
   vkCmdCopyBuffer(command_buffer, src.buffer, buffer, 1, &copyRegion);
 
   command_pool.end_single_command(command_buffer); 
+}
+
+void Buffer::copyBuffer(VkBuffer src, CommandPool& commandpool) {
+  VkCommandBuffer command_buffer = commandpool.start_single_command();
+
+  VkBufferCopy copyRegion{};
+  copyRegion.size = size;
+  vkCmdCopyBuffer(command_buffer, src, buffer, 1, &copyRegion);
+
+  commandpool.end_single_command(command_buffer); 
+
 }
