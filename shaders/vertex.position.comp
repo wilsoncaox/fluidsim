@@ -21,7 +21,7 @@ layout(push_constant) uniform PushConstant {
     uint particle_count;
 } pc;
 
-const float time = 0.01f;
+const float time = 0.01;
 const float gravity = -9.8;
 
 void main() {

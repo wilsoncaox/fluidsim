@@ -79,9 +79,9 @@ class FluidSystem {
     const int hashK1 = 15823;
     const int hashK2 = 9737333;
     const int hashK3 = 9737357;
+    const int table_cells = 17658;
 
-
-    const float smoothing_radius = 0.5;
+    const float smoothing_radius = 0.2;
 
     int key_from_hash(int hash) {
       int count = int(instance_count);
@@ -91,7 +91,7 @@ class FluidSystem {
     }
 
     int grid_from_pos(float value) {
-      return int(std::ceil((2*value - smoothing_radius) / (2 * smoothing_radius)));
+      return int(std::floor(value / smoothing_radius));
     }
 
     int get_key(glm::vec4 position) {

@@ -92,6 +92,7 @@ void Renderer::draw(VulkanContext& context, Window& window, Scene& scene, uint32
   result = swapchain->submit_command(commandbuffers[current_frame], current_frame, &image_index);
   // scene.fluid_system->print_data(context.get_commandpool(), context.physical_device);
   // scene.fluid_system->print_density(context.get_commandpool(), context.physical_device);
+  // std::cout <<   " ======= "<< '\n';
 
   if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || window.resized) {
     window.resized = false;

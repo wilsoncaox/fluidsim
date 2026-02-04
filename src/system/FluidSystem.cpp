@@ -6,6 +6,7 @@
 #include <iostream>
 #include <cmath>
 #include <array>
+#include <limits>
 #include <vulkan/vulkan_core.h>
 
 FluidSystem::FluidSystem(
@@ -38,7 +39,7 @@ FluidSystem::FluidSystem(
   spatial_lookup_buffer = std::make_unique<Buffer>(
     device, 
     physical_device, 
-    sizeof(uint32_t)*instance_count,
+    sizeof(uint32_t)*table_cells,
     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
   );
@@ -153,6 +154,27 @@ void FluidSystem::calculate_predicted_position(VkCommandBuffer commandbuffer) {
 
 void FluidSystem::update_spatial_lookup(VkCommandBuffer commandbuffer, CommandPool& commandpool) {
   sort->run(commandpool, commandbuffer, particle_buffers[read_index].buffer);
+  
+  vkCmdFillBuffer(commandbuffer, spatial_lookup_buffer->buffer, 0, spatial_lookup_buffer->size, std::numeric_limits<uint32_t>::max());
+
+  VkBufferMemoryBarrier spatial_default_barrier{};
+  spatial_default_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+  spatial_default_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  spatial_default_barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+  spatial_default_barrier.buffer = spatial_lookup_buffer->buffer;
+  spatial_default_barrier.offset = 0;
+  spatial_default_barrier.size = VK_WHOLE_SIZE;
+
+  vkCmdPipelineBarrier(
+    commandbuffer,
+    VK_PIPELINE_STAGE_TRANSFER_BIT,
+    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+    0,
+    0, nullptr,
+    1, &spatial_default_barrier,
+    0, nullptr
+  );
+
 
   std::array<VkDescriptorSet, 2> sets = {particle_set[read_index], spatial_lookup_set};
   spatial_pipeline->bind_descriptor_sets(commandbuffer, VK_PIPELINE_BIND_POINT_COMPUTE, 0, static_cast<uint32_t>(sets.size()), sets.data());
@@ -283,35 +305,46 @@ void FluidSystem::init_data(CommandPool& commandpool, VkPhysicalDevice physical_
   }
 
   // FluidData data1{};
-  // data1.position = {0.2, 0.2, 2.2, 0}; // (0, 0, 1);
+  // data1.position = {0.2, 0.2, 0.0, 0}; // (0, 0, 0);
   //
   // FluidData data2{};
-  // data2.position = {1.5, 0.2, 0.2, 0}; // (1, 0, 0)
+  // data2.position = {0.7, 0.2, 0.0, 0}; // (1, 0, 0)
   //
   // FluidData data3{};
-  // data3.position = {1.6, 0.22, 0.3, 0}; // (1, 0, 0)
+  // data3.position = {0.8, 0.6, 0.0, 0}; // (1, 1, 0)
   //
   // FluidData data4{};
-  // data4.position = {0.3, 0.1, 2.3, 0}; // (0, 0, 1)
+  // data4.position = {-0.3, 0.1, 0.0, 0}; // (-1, 0, 0)
   //
   // FluidData data5{};
-  // data5.position = {-4.212313123, 0.1122321, 2.33332323, 0}; // (-2, 0, 1)
+  // data5.position = {-0.2, -0.1, 0.0, 0}; // (-1, -1, 0)
   //
   // FluidData data6{};
-  // data6.position = {-3.2, 0.2, 1.5, 0}; // (-2, 0, 1)
+  // data6.position = {0.8, -0.2, 0.0, 0}; // (1, -1, 0)
   //
   // FluidData data7{};
-  // data7.position = {-0.2, 0.2, 2.1, 0}; // (0, 0, 1)
+  // data7.position = {-0.2, 0.8, 0.0, 0}; // (-1, 1, 0)
   //
   // FluidData data8{};
-  // data8.position = {-10.1, -90.5, 9.0, 0}; // (-1, -1, -1)
+  // data8.position = {0.3, 0.8, 0.0, 0}; // (0, 1, 0)
   //
   // FluidData data9{};
-  // data9.position = {0.2, 0.2, 2.4, 0}; // (0, 0, 1)
+  // data9.position = {0.2, -0.2, 0.0, 0}; // (0, -1, 0)
   //
   // FluidData data10{};
-  // data10.position = {0.2, 0.2, 2.5, 0}; // (0, 0 ,1)
+  // data10.position = {1.2, 0.2, 0.0, 0}; // (2, 0 ,0)
   //
+  // FluidData data11{};
+  // data11.position = {1.24, 0.42, 0.0, 0}; // (2, 0 ,0)
+  //
+  // FluidData data12{};
+  // data12.position = {1.33, 0.12, 0.0, 0}; // (2, 0 ,0)
+  //
+  // FluidData data13{};
+  // data13.position = {1.33, 0.01, 0.0, 0}; // (2, 0 ,0)
+  //
+  // FluidData data14{};
+  // data14.position = {1.18, 0.01, 0.0, 0}; // (2, 0 ,0)
   //
   // values.push_back(data1);
   // values.push_back(data2);
@@ -323,13 +356,17 @@ void FluidSystem::init_data(CommandPool& commandpool, VkPhysicalDevice physical_
   // values.push_back(data8);
   // values.push_back(data9);
   // values.push_back(data10);
-
-
+  // values.push_back(data11);
+  // values.push_back(data12);
+  // values.push_back(data13);
+  // values.push_back(data14);
+  //
+  //
   // for (auto i : values) {
   //   int hash = grid_from_pos(i.position.x)*15823 + grid_from_pos(i.position.y)*9737333 + grid_from_pos(i.position.z)*9737357;  
   //   std::cout << i.position.x << " " << i.position.y << " " << i.position.z << " key: " << (hash % instance_count) << '\n';
   // }
-
+  //
   staging.fillData(values.data(), size);
 
   for (auto& buffer : particle_buffers) {
@@ -348,18 +385,22 @@ void FluidSystem::print_data(CommandPool& commandpool, VkPhysicalDevice physical
     VK_BUFFER_USAGE_TRANSFER_DST_BIT
   );
 
-  staging.copyBuffer(particle_buffers[read_index], commandpool);
+  staging.copyBuffer(particle_buffers[write_index], commandpool);
 
-  std::vector<FluidData> values(instance_count);
-  staging.getData(values.data());
-  // auto value = values[5];
+  std::vector<FluidData> reading(instance_count);
+  staging.getData(reading.data());
 
-  for (auto value : values) {
-    std::cout << value.predicted_position.w << " " << value.velocity.w << '\n';
+  // staging.copyBuffer(particle_buffers[write_index], commandpool);
+  // std::vector<FluidData> writing(instance_count);
+  // staging.getData(writing.data());
+
+  // Key
+  for (size_t i = 0; i < instance_count; i++) {
+    std::cout << reading[i].predicted_position.x << " " << reading[i].predicted_position.y << " " << reading[i].predicted_position.z << " " << reading[i].position.w << '\n';
+    // std::cout << reading[i].position.x << " " << reading[i].position.y << " " << reading[i].position.z << " " << reading[i].position.w << '\n';
+    std::cout << '\n';
   }
-  // std::cout << "position: "<< value.position.x << " " << value.position.y << " " << value.position.z << '\n';
-  // std::cout << "predicted position: "<< value.predicted_position.x << " " << value.predicted_position.y << " " << value.predicted_position.z << '\n';
-  // std::cout << "velocity: " << value.velocity.x << " " << value.velocity.y << " " << value.velocity.z << '\n';
+
   std::cout << '\n';
 
 }
@@ -367,7 +408,7 @@ void FluidSystem::print_data(CommandPool& commandpool, VkPhysicalDevice physical
 
 void FluidSystem::print_density(CommandPool& commandpool, VkPhysicalDevice pysical_device) {
   vkDeviceWaitIdle(device);
-  VkDeviceSize size = sizeof(float) * instance_count; 
+  VkDeviceSize size = sizeof(uint32_t) * 17576; 
   HostBuffer staging(
     device, 
     physical_device, 
@@ -375,12 +416,15 @@ void FluidSystem::print_density(CommandPool& commandpool, VkPhysicalDevice pysic
     VK_BUFFER_USAGE_TRANSFER_DST_BIT
   );
 
-  staging.copyBuffer(*density_buffer, commandpool);
-  std::vector<float> values(instance_count);
+  staging.copyBuffer(*spatial_lookup_buffer, commandpool);
+  std::vector<uint32_t> values(17576);
   staging.getData(values.data());
 
-  for (auto i : values) {
-    std::cout << i << " ";
+  for (size_t i = 0; i < values.size(); i++) {
+    if (values[i] != std::numeric_limits<uint32_t>::max()) {
+      std::cout << values[i] << " " << i << '\n';;
+    }
+
   }
   std::cout << '\n';
 }

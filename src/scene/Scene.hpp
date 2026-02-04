@@ -9,7 +9,7 @@
 #include <memory>
 
 struct Scene {
-  inline static uint32_t instances = 50000;
+  inline static uint32_t instances = 10000;
 
   void init(VulkanContext& context, DescriptorBuilder& builder);
   // void update(Window& window, double delta_time);
