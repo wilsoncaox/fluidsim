@@ -24,7 +24,6 @@ void Renderer::init(VulkanContext& context, Window& window) {
 
 
   graphics_pipeline = std::make_unique<GraphicsPipeline>(device, "shaders/vertex.vert.spv", "shaders/vertex.frag.spv");
-
 }
 
 void Renderer::build_resources(VulkanContext& context, Scene& scene) {
@@ -34,7 +33,6 @@ void Renderer::build_resources(VulkanContext& context, Scene& scene) {
   }
  
   graphics_pipeline->create(renderpass->renderpass, {scene.fluid_system->particle_layout_graphics, scene.camera->layout});
-
 }
 
 void Renderer::recreate_frame(VulkanContext& context, Window& window) {

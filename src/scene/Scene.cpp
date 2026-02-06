@@ -3,9 +3,8 @@
 #include "../system/FluidSystem.hpp"
 #include "Camera.hpp"
 #include "entities/Sphere.hpp"
-
+#include "entities/Cube.hpp"
 #include <memory>
-#include <iostream>
 
 void Scene::init(VulkanContext& context, DescriptorBuilder& builder) {
   fluid_system = std::make_unique<FluidSystem>(context.device, context.physical_device, builder, Scene::instances); 

@@ -1,20 +1,18 @@
 
-#include "GraphicsPipeline.hpp"
+#include "BoundaryPipeline.hpp"
 
-#include "../resource/Vertex.hpp"
-#include "Shader.hpp"
+#include "../../resource/Vertex.hpp"
+#include "../../pipeline/Shader.hpp"
 
 #include <stdexcept>
-#include <vulkan/vulkan_core.h>
-#include <iostream>
 
-GraphicsPipeline::GraphicsPipeline(
+BoundaryPipeline::BoundaryPipeline(
   VkDevice device, 
   std::string vertex, 
   std::string fragment
 ) : Pipeline(device), vertex_shader_path(vertex), fragment_shader_path(fragment) {};
 
-GraphicsPipeline::~GraphicsPipeline() {
+BoundaryPipeline::~BoundaryPipeline() {
   if (pipeline != VK_NULL_HANDLE) {
     vkDestroyPipeline(device, pipeline, nullptr);
   }
@@ -24,7 +22,7 @@ GraphicsPipeline::~GraphicsPipeline() {
   }
 }
 
-void GraphicsPipeline::create(VkRenderPass renderpass, std::vector<VkDescriptorSetLayout>&& descriptor_layouts) {
+void BoundaryPipeline::create(VkRenderPass renderpass, std::vector<VkDescriptorSetLayout>&& descriptor_layouts) {
   VkPipelineVertexInputStateCreateInfo vertexInputStage{};
   vertexInputStage.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
@@ -38,7 +36,7 @@ void GraphicsPipeline::create(VkRenderPass renderpass, std::vector<VkDescriptorS
 
   VkPipelineInputAssemblyStateCreateInfo inputAssemblyStage{};
   inputAssemblyStage.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-  inputAssemblyStage.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+  inputAssemblyStage.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
   inputAssemblyStage.primitiveRestartEnable = VK_FALSE;
 
   Shader vertexShader(device, vertex_shader_path, VK_SHADER_STAGE_VERTEX_BIT);   
@@ -139,6 +137,6 @@ void GraphicsPipeline::create(VkRenderPass renderpass, std::vector<VkDescriptorS
   }
 }
 
-void GraphicsPipeline::bind_pipeline(VkCommandBuffer command_buffer) {
+void BoundaryPipeline::bind_pipeline(VkCommandBuffer command_buffer) {
   vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 }

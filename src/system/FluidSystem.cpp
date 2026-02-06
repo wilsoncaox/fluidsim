@@ -52,6 +52,13 @@ FluidSystem::FluidSystem(
     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
   );
 
+  boundary_buffer = std::make_unique<HostBuffer>(
+    device,
+    physical_device,
+    sizeof(float)*6,
+    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
+  );
+
   // For compute
   particle_set.resize(2);
   for (size_t i = 0; i < 2; i++) {
@@ -81,6 +88,10 @@ FluidSystem::FluidSystem(
   builder.build(density_set, density_layout);
   builder.clear();
 
+  builder.bind_buffer(1, VK_SHADER_STAGE_COMPUTE_BIT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, boundary_buffer->get_info());
+  builder.build(boundary_set, boundary_layout);
+  builder.clear();
+
   // Key descriptors 
   sort = std::make_unique<Sort>(device, physical_device, instance_count, sizeof(FluidData));
   sort->init(builder, particle_layout, (instance_count / 256) + 1, 1, 1);
@@ -99,8 +110,9 @@ FluidSystem::FluidSystem(
   density_pipeline->create({particle_layout, density_layout, spatial_lookup_layout}, {particle_constant});
 
   move_pipeline = std::make_unique<ComputePipeline>(device, "shaders/vertex.move.comp.spv");
-  move_pipeline->create({particle_layout, particle_layout, density_layout, spatial_lookup_layout}, {particle_constant});
-
+  move_pipeline->create({particle_layout, particle_layout, density_layout, spatial_lookup_layout, boundary_layout}, {particle_constant});
+  
+  init_boundary();
 };
 
 void FluidSystem::calculate_predicted_position(VkCommandBuffer commandbuffer) {
@@ -234,7 +246,7 @@ void FluidSystem::calculate_density(VkCommandBuffer commandbuffer){
 
 void FluidSystem::move_particles(VkCommandBuffer commandbuffer) {
 
-  std::array<VkDescriptorSet, 4> sets = {particle_set[read_index], particle_set[write_index], density_set, spatial_lookup_set};
+  std::array<VkDescriptorSet, 5> sets = {particle_set[read_index], particle_set[write_index], density_set, spatial_lookup_set, boundary_set};
 
   move_pipeline->bind_descriptor_sets(commandbuffer, VK_PIPELINE_BIND_POINT_COMPUTE, 0, static_cast<uint32_t>(sets.size()), sets.data());
   move_pipeline->bind_push_constants(commandbuffer, VK_SHADER_STAGE_COMPUTE_BIT, sizeof(uint32_t), &instance_count);
@@ -292,11 +304,12 @@ void FluidSystem::init_data(CommandPool& commandpool, VkPhysicalDevice physical_
 
   std::random_device rd;
   std::mt19937 gen(rd());
-  std::uniform_real_distribution<float> dist(-5.0f, 5.0f);
+  std::uniform_real_distribution<float> height(-5.0f, 0.0f);
+  std::uniform_real_distribution<float> width(-2.5f, 2.5f);
   for (int i = 0; i < instance_count; ++i) {
-    float x = dist(gen);
-    float y = dist(gen);
-    float z = dist(gen);
+    float x = width(gen);
+    float y = height(gen);
+    float z = width(gen);
 
 
     FluidData data{};
@@ -408,7 +421,7 @@ void FluidSystem::print_data(CommandPool& commandpool, VkPhysicalDevice physical
 
 void FluidSystem::print_density(CommandPool& commandpool, VkPhysicalDevice pysical_device) {
   vkDeviceWaitIdle(device);
-  VkDeviceSize size = sizeof(uint32_t) * 17576; 
+  VkDeviceSize size = sizeof(float) * instance_count; 
   HostBuffer staging(
     device, 
     physical_device, 
@@ -416,16 +429,42 @@ void FluidSystem::print_density(CommandPool& commandpool, VkPhysicalDevice pysic
     VK_BUFFER_USAGE_TRANSFER_DST_BIT
   );
 
-  staging.copyBuffer(*spatial_lookup_buffer, commandpool);
-  std::vector<uint32_t> values(17576);
+  staging.copyBuffer(*density_buffer, commandpool);
+  std::vector<float> values(instance_count);
   staging.getData(values.data());
 
   for (size_t i = 0; i < values.size(); i++) {
-    if (values[i] != std::numeric_limits<uint32_t>::max()) {
-      std::cout << values[i] << " " << i << '\n';;
-    }
-
+    std::cout << values[i] << " ";
   }
   std::cout << '\n';
 }
 
+
+void FluidSystem::init_boundary() {
+  // 0 - front
+  // 1 - back
+  // 2 - bottom
+  // 3 - top
+  // 4 - right
+  // 5 - left 
+   
+  front = 5.0;
+  back = -5.0;
+  bottom = 5.0;
+  top = -5.0;
+  right = 5.0;
+  left = -5.0;
+
+  std::vector<float> boundaries = {front, back, bottom, top, right, left};  
+  boundary_buffer->fillData(boundaries.data(), sizeof(float)*6);    
+}
+
+void FluidSystem::update_boundary(Window& window) {
+  if (window.pressed(GLFW_KEY_Z)) front += 0.05;
+  if (window.pressed(GLFW_KEY_X)) front -= 0.05;
+  if (window.pressed(GLFW_KEY_C)) back += 0.05;
+  if (window.pressed(GLFW_KEY_V)) back -= 0.05;
+
+  std::vector<float> boundaries = {front, back, bottom, top, right, left};  
+  boundary_buffer->fillData(boundaries.data(), sizeof(float)*6);    
+}

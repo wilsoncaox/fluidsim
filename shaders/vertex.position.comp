@@ -22,7 +22,6 @@ layout(push_constant) uniform PushConstant {
 } pc;
 
 const float time = 0.01;
-const float gravity = -9.8;
 
 void main() {
     uint id = gl_GlobalInvocationID.x;

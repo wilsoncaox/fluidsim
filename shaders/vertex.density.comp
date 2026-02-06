@@ -90,7 +90,7 @@ float calculate_density(uint particle_id, in vec3 position) {
     //     float dst = distance(position, current.predicted_position.xyz);
     //     density += mass * poly6_kernel(dst);
     // }
-
+    //
     return density;
 }
 

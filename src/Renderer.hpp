@@ -7,6 +7,8 @@
 #include "pipeline/GraphicsPipeline.hpp"
 #include "descriptors/DescriptorHandler.hpp"
 
+#include "scene/pipelines/BoundaryPipeline.hpp"
+
 #include <memory>
 
 class Renderer {
@@ -23,6 +25,7 @@ class Renderer {
     void recreate_frame(VulkanContext& context, Window& window); 
 
     std::unique_ptr<GraphicsPipeline> graphics_pipeline;
+    std::unique_ptr<BoundaryPipeline> boundary_pipeline;
 
     std::vector<VkCommandBuffer> commandbuffers;
 

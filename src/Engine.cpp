@@ -24,6 +24,7 @@ void Engine::run() {
     float delta_time = static_cast<float>(current_time - last_time);
 
     scene.camera->update(window, delta_time);
+    scene.fluid_system->update_boundary(window);
 
     renderer.draw(context, window, scene, current_frame);
 

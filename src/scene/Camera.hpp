@@ -27,9 +27,9 @@ class Camera {
     void bind_camera(VkCommandBuffer commandbuffer, Pipeline& pipeline, VkPipelineBindPoint bind_point);
     void update(Window& window, float delta_time);
 
-    double yaw = -105;
-    double pitch = -20;
-    glm::vec3 position = {0, 20, 20};
+    double yaw = 70;
+    double pitch = 20;
+    glm::vec3 position = {0, 0, -20};
 
     VkDescriptorSetLayout layout;
 
