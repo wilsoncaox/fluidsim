@@ -464,6 +464,9 @@ void FluidSystem::update_boundary(Window& window) {
   if (window.pressed(GLFW_KEY_X)) front -= 0.05;
   if (window.pressed(GLFW_KEY_C)) back += 0.05;
   if (window.pressed(GLFW_KEY_V)) back -= 0.05;
+  if (window.pressed(GLFW_KEY_B)) bottom += 0.05;
+  if (window.pressed(GLFW_KEY_N)) bottom -= 0.05;
+
 
   std::vector<float> boundaries = {front, back, bottom, top, right, left};  
   boundary_buffer->fillData(boundaries.data(), sizeof(float)*6);    
