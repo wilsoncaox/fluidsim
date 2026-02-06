@@ -22,6 +22,7 @@ To build the project, you will need
 - Cmake
 - A compiler with C++20 support
 - Linux OS
+- Graphics Card
 
 CMake is currently not configured to support Windows OS and is only made to work with Linux.
 
