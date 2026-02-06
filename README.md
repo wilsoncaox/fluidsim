@@ -13,7 +13,17 @@ All simulations steps are done through compute shaders and renderering is done t
 
 
 ## DEMO
-![](assets/demo.gif)
+<img src="assets/thumbnail.png" alt="Demo GIF" id="demo-gif" />
+
+<script>
+  // Preload the GIF
+  const img = document.getElementById('demo-gif');
+  const gif = new Image();
+  gif.src = 'assets/demo.gif';
+  gif.onload = () => {
+    img.src = gif.src;
+  }
+</script>
 Demo showing 35000 particles running smoothly.
 
 ## Requirements
