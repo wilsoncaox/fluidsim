@@ -5,24 +5,32 @@ layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 struct ParticleData {
     vec4 position;
     vec4 velocity;
-    vec4 density;
     vec4 predicted_position;
 };
 
-layout(std430, set = 1, binding = 1) buffer Read {
-    ParticleData[] in_particles;
+layout(std430, set = 0, binding = 0) buffer Read {
+    ParticleData[] data;
 } read;
 
 
-layout(std430, set = 0, binding = 1) buffer Write {
-    ParticleData[] out_particles;
+layout(std430, set = 1, binding = 1) buffer Write {
+    float[] data;
 } write;
 
+layout(std430, set = 2, binding = 1) buffer Spatial {
+    uint[] data;
+} spatial;
 
+layout(push_constant) uniform PushConstant {
+    uint particle_count;
+} pc;
+
+const uint UINT_MAX = ~uint(0);
 const float mass = 1.0f;
 const float PI = 3.1415926538;
-const uint particle_count = 20000;
-const float smoothing_radius = 0.25f;
+const float smoothing_radius = 0.2;
+const int table_cells = 17658;
+
 
 float poly6_kernel(float dst) {
     if (dst >= smoothing_radius) return 0;
@@ -31,26 +39,69 @@ float poly6_kernel(float dst) {
     return scale * value * value * value;
 }
 
-float calculate_density(in vec3 position) {
-    float density = 0;
+const int HASH_K1 = 73856093;
+const int HASH_K2 = 19349663;
+const int HASH_K3 = 83492791;
 
-    for (uint i = 0; i < particle_count; i++) {
-        float dst = distance(position, read.in_particles[i].predicted_position.xyz);
-        density += mass * poly6_kernel(dst);
+int grid_from_pos(float value) {
+    return int(floor(value / smoothing_radius));
+}
+
+uint get_key(vec4 position) {
+    int grid_x = grid_from_pos(position.x);
+    int grid_y = grid_from_pos(position.y);
+    int grid_z = grid_from_pos(position.z);
+
+    int hash = (grid_x * HASH_K1) ^ (grid_y * HASH_K2) ^ (grid_z * HASH_K3);
+    uint key = uint((hash % table_cells + table_cells) % table_cells);
+    return key;
+}
+
+float calculate_density(uint particle_id, in vec3 position) {
+    float density = mass * poly6_kernel(0);
+
+    for (int x = -1; x <= 1; x++) {
+        for (int y = -1; y <= 1; y++) {
+            for (int z = -1; z <= 1; z++) {
+                float grid_x = position.x + x*smoothing_radius;
+                float grid_y = position.y + y*smoothing_radius;
+                float grid_z = position.z + z*smoothing_radius;
+
+                uint start_index = spatial.data[get_key(vec4(grid_x, grid_y, grid_z, 0))];
+
+                for (uint i = start_index; i < pc.particle_count; i++) {
+                    ParticleData current = read.data[i];
+                    if (i == particle_id) continue;
+                    if (current.position.w != read.data[start_index].position.w) break;
+
+                    float dst = distance(position, current.predicted_position.xyz);
+                    density += mass * poly6_kernel(dst);
+                }
+            }
+        }
     }
 
+    // float density = 0.0;
+    //
+    //
+    // for (uint i = 0; i < pc.particle_count; i++) {
+    //     ParticleData current = read.data[i];
+    //
+    //     float dst = distance(position, current.predicted_position.xyz);
+    //     density += mass * poly6_kernel(dst);
+    // }
+    //
     return density;
 }
 
 void main() {
     uint id = gl_GlobalInvocationID.x;
-    if (id >= particle_count) {
+    if (id >= pc.particle_count) {
         return;
     }
 
-    ParticleData current = read.in_particles[id];
+    ParticleData current = read.data[id];
 
-    float density = calculate_density(current.predicted_position.xyz);
-    current.density.x = density;
-    write.out_particles[id] = current;
+    float density = calculate_density(id, current.predicted_position.xyz);
+    write.data[id] = density;
 }

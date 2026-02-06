@@ -1,0 +1,250 @@
+#version 450
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+struct ParticleData {
+    vec4 position;
+    vec4 velocity;
+    vec4 predicted_position;
+};
+
+layout(std430, set = 0, binding = 0) buffer Read {
+    ParticleData[] data;
+} read;
+
+
+layout(std430, set = 1, binding = 0) buffer Write {
+    ParticleData[] data;
+} write;
+
+layout(std430, set = 2, binding = 1) buffer Density {
+    float[] data;
+} density;
+
+layout(std430, set = 3, binding = 1) buffer Spatial {
+    uint[] data;
+} spatial;
+
+  // 0 - front
+  // 1 - back
+  // 2 - bottom
+  // 3 - top
+  // 4 - right
+  // 5 - left 
+layout(set = 4, binding = 1) uniform Boundary {
+    float front;
+    float back;
+    float bottom;
+    float top;
+    float right;
+    float left;
+} boundary;
+
+layout(push_constant) uniform PushConstant {
+    uint particle_count;
+} pc;
+
+const float PI = 3.1415926538;
+
+const float mass = 1.0f;
+const float smoothing_radius = 0.2;
+const float gravity = -9.8f;
+const float damping = 0.95f;
+const float time = 0.01f;
+const uint UINT_MAX = ~uint(0);
+
+const float target_density = 200.0f;
+const float pressure_multiplier = 27.0f;
+
+const int HASH_K1 = 73856093;
+const int HASH_K2 = 19349663;
+const int HASH_K3 = 83492791;
+const int table_cells = 17658;
+
+
+int grid_from_pos(float value) {
+    return int(floor(value / smoothing_radius));
+}
+
+uint get_key(vec4 position) {
+    int grid_x = grid_from_pos(position.x);
+    int grid_y = grid_from_pos(position.y);
+    int grid_z = grid_from_pos(position.z);
+
+    int hash = (grid_x * HASH_K1) ^ (grid_y * HASH_K2) ^ (grid_z * HASH_K3);
+    uint key = uint((hash % table_cells + table_cells) % table_cells);
+    return key;
+}
+
+float poly6_kernel(float dst) {
+    if (dst >= smoothing_radius) return 0;
+    float scale = 315.0 / (64.0 * PI * pow(smoothing_radius, 9.0));
+    float value = (smoothing_radius * smoothing_radius - dst * dst);
+    return scale * value * value * value;
+}
+
+float spiky_gradient(float dst) {
+    if (dst >= smoothing_radius) return 0;
+
+    float scale = -45.0 / (PI * pow(smoothing_radius, 6));
+    float value = pow(smoothing_radius - dst, 2);
+    return scale * value;
+}
+
+float density_to_pressure(float density) {
+    return (density - target_density) * pressure_multiplier;
+}
+
+vec3 calculate_pressure_force(uint id) {
+    vec3 pressure_force = vec3(0.0);
+    vec3 viscosity_force = vec3(0.0);
+    ParticleData inital_particle = read.data[id];
+
+    float inital_pressure = density_to_pressure(density.data[id]); 
+
+    for (int x = -1; x <= 1; x++) {
+        for (int y = -1; y <= 1; y++) {
+            for (int z = -1; z <= 1; z++) {
+                float grid_x = inital_particle.predicted_position.x + x*smoothing_radius;
+                float grid_y = inital_particle.predicted_position.y + y*smoothing_radius;
+                float grid_z = inital_particle.predicted_position.z + z*smoothing_radius;
+
+                uint start_index = spatial.data[get_key(vec4(grid_x, grid_y, grid_z, 0))];
+
+                for (uint i = start_index; i < pc.particle_count; i++) {
+                    ParticleData current = read.data[i];
+                    if (id == i) continue;
+                    if (current.position.w != read.data[start_index].position.w) break;
+
+                    vec3 dist = current.predicted_position.xyz - inital_particle.predicted_position.xyz;
+                    float len = length(dist);
+                    
+                    if (len < 1e-2) continue;
+
+                    vec3 grad = spiky_gradient(len) * (dist / len);
+                    
+                    float current_density = density.data[i];
+                    float current_pressure = (density_to_pressure(current_density) + inital_pressure) / 2;
+
+                    pressure_force += mass * current_pressure * grad / current_density;
+                    
+                    float influence = poly6_kernel(len);  
+                    viscosity_force += (read.data[i].velocity.xyz - read.data[id].velocity.xyz) * influence;
+                }
+            }
+        }
+    }
+
+    // for (int i = 0; i < pc.particle_count; i++) {
+    //     ParticleData current = read.data[i];
+    //     if (id == i) continue;
+    //
+    //     vec3 dist = current.predicted_position.xyz - inital_particle.predicted_position.xyz;
+    //     float len = length(dist);
+    //
+    //     if (len == 0) continue; 
+    //
+    //     vec3 grad = spiky_gradient(len) * (dist / len);
+    //
+    //     float current_density = density.data[i];
+    //     if (current_density <= 0) continue;
+    //     float current_pressure = (density_to_pressure(current_density) + inital_pressure) / 2;
+    //
+    //
+    //     force += mass * current_pressure * grad / current_density;
+    //
+    // }
+
+    return pressure_force + viscosity_force * 0.8;
+}
+
+void main() {
+    uint id = gl_GlobalInvocationID.x;
+    if (id >= pc.particle_count) {
+        return;
+    }
+
+    ParticleData current = read.data[id];
+
+    // Apply pressure forces
+    vec3 pressure_force = calculate_pressure_force(id);
+    vec3 acceleration = pressure_force / density.data[id];
+    acceleration.y += -9.8;
+
+    current.velocity.xyz += acceleration * time;
+    current.velocity.xyz *= 0.995;
+
+    current.position.xyz += current.velocity.xyz * time;
+
+    float bound = 5.0;
+
+    if (current.position.x > boundary.right) {
+        current.position.x = boundary.right;
+        current.velocity.x = -current.velocity.x * damping;
+    }
+    else if (current.position.x < boundary.left) {
+        current.position.x = boundary.left;
+        current.velocity.x = -current.velocity.x * damping;
+    }
+
+    if (current.position.y > boundary.bottom) {
+        current.position.y = boundary.bottom;
+        current.velocity.y = -current.velocity.y * damping;
+    }
+    else if (current.position.y < boundary.top) {
+        current.position.y = boundary.top;
+        current.velocity.y = -current.velocity.y * damping;
+    }
+
+    if (current.position.z > boundary.front) {
+        current.position.z = boundary.front;
+        current.velocity.z = -current.velocity.z * damping;
+    }
+    else if (current.position.z < boundary.back) {
+        current.position.z = boundary.back;
+        current.velocity.z = -current.velocity.z * damping;
+    }
+
+
+    // float bound = 2.5f;
+    // float k = 5.0f;       // boundary repulsion strength
+    // float damping = 0.9f; // velocity damping
+    //
+    // // X-axis
+    // if (current.position.x > bound) {
+    //     float penetration = current.position.x - bound;
+    //     current.velocity.x -= k * penetration; // push back smoothly
+    //     current.velocity.x *= damping;
+    // }
+    // else if (current.position.x < -bound) {
+    //     float penetration = current.position.x + bound;
+    //     current.velocity.x -= k * penetration;
+    //     current.velocity.x *= damping;
+    // }
+    //
+    // // Y-axis
+    // if (current.position.y > bound) {
+    //     float penetration = current.position.y - bound;
+    //     current.velocity.y -= k * penetration;
+    //     current.velocity.y *= damping;
+    // }
+    // else if (current.position.y < -bound) {
+    //     float penetration = current.position.y + bound;
+    //     current.velocity.y -= k * penetration;
+    //     current.velocity.y *= damping;
+    // }
+    //
+    // // Z-axis
+    // if (current.position.z > bound) {
+    //     float penetration = current.position.z - bound;
+    //     current.velocity.z -= k * penetration;
+    //     current.velocity.z *= damping;
+    // }
+    // else if (current.position.z < -bound) {
+    //     float penetration = current.position.z + bound;
+    //     current.velocity.z -= k * penetration;
+    //     current.velocity.z *= damping;
+    // }
+
+    write.data[id] = current;
+}

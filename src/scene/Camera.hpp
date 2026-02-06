@@ -1,10 +1,10 @@
 
 #pragma once
 
-#include "../buffer/resource/UniformBuffer.hpp"
 #include "../buffer/HostBuffer.hpp"
 #include "../context/Window.hpp"
-
+#include "../descriptors/DescriptorBuilder.hpp"
+#include "../pipeline/Pipeline.hpp"
 #include <memory>
 
 #define GLM_FORCE_RADIANS
@@ -22,25 +22,23 @@ struct CameraData {
 
 class Camera {
   public:
-    Camera(VkDevice device, VkPhysicalDevice physical_device, uint32_t binding);
+    Camera(VkDevice device, VkPhysicalDevice physical_device, DescriptorBuilder& builder);
 
-
-    Descriptor* get_resource() {return resource.get(); };
+    void bind_camera(VkCommandBuffer commandbuffer, Pipeline& pipeline, VkPipelineBindPoint bind_point);
     void update(Window& window, float delta_time);
 
-    double yaw = -105;
-    double pitch = -20;
+    double yaw = 70;
+    double pitch = 20;
+    glm::vec3 position = {0, 0, -20};
 
-    glm::vec3 position = {0, 20, 20};
+    VkDescriptorSetLayout layout;
 
   private:
-   
+
     VkDevice device;
     VkPhysicalDevice physical_device;
     uint32_t binding;
 
-    VkDescriptorBufferInfo buffer_info;
-
     std::unique_ptr<HostBuffer> buffer;
-    std::unique_ptr<UniformBuffer> resource;
+    VkDescriptorSet set;
 };

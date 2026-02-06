@@ -1,18 +1,22 @@
 
 #include "Camera.hpp"
 #include <iostream>
+#include <vulkan/vulkan_core.h>
 
 Camera::Camera(
   VkDevice device, 
   VkPhysicalDevice physical_device,
-  uint32_t binding
-) : device(device), physical_device(physical_device), binding(binding) {
- 
-  buffer = std::make_unique<HostBuffer>(device, physical_device, sizeof(CameraData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-  resource = std::make_unique<UniformBuffer>(device, 0, VK_SHADER_STAGE_VERTEX_BIT); 
+  DescriptorBuilder& builder
+) : device(device), physical_device(physical_device) {
 
-  resource->bind(buffer.get());
+  buffer = std::make_unique<HostBuffer>(device, physical_device, sizeof(CameraData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+
+  builder.clear();
+  builder.bind_buffer(0, VK_SHADER_STAGE_VERTEX_BIT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, buffer->get_info());
+  builder.build(set, layout); 
+
 }
+
 
 void Camera::update(Window& window, float delta_time) {
   CursorPosition current = window.get_cursor_position();
@@ -58,6 +62,10 @@ void Camera::update(Window& window, float delta_time) {
   data.proj[1][1] *= -1;
 
   buffer->fillData(&data, sizeof(data));
-  
+
   window.reset_cursor_position();
+}
+
+void Camera::bind_camera(VkCommandBuffer commandbuffer, Pipeline& pipeline, VkPipelineBindPoint bind_point) {  
+  pipeline.bind_descriptor_sets(commandbuffer, bind_point, 1, 1, &set);
 }

@@ -4,19 +4,19 @@
 struct ParticleData {
     vec4 position;
     vec4 velocity;
-    vec4 density;
     vec4 predicted_position;
 };
 
-layout(binding = 0) uniform Camera {
+layout(set = 0, binding = 0) buffer Read {
+    ParticleData[] particles;
+} read;
+
+layout(set = 1, binding = 0) uniform Camera {
     mat4 model;
     mat4 view;
     mat4 proj;
 } camera;
 
-layout(set = 1, binding = 1) buffer Read {
-    ParticleData[] particles;
-} read;
 
 layout(location = 0) in vec3 inPos;
 layout(location = 1) in vec3 inColor;

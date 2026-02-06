@@ -1,17 +1,17 @@
 
 #include "Scene.hpp"
-#include "entities/Sphere.hpp"
 #include "../system/FluidSystem.hpp"
-#include "../renderpass/Swapchain.hpp"
+#include "Camera.hpp"
+#include "entities/Sphere.hpp"
+#include "entities/Cube.hpp"
+#include <memory>
 
-void Scene::init(VkDevice device, VkPhysicalDevice physical_device) {
-  system = std::make_unique<FluidSystem>(device, physical_device, Swapchain::MAX_FRAMES_IN_FLIGHT, Scene::instances); 
-  camera = std::make_unique<Camera>(device, physical_device, 0);
+void Scene::init(VulkanContext& context, DescriptorBuilder& builder) {
+  fluid_system = std::make_unique<FluidSystem>(context.device, context.physical_device, builder, Scene::instances); 
+  fluid_system->init_data(context.get_commandpool(), context.physical_device);
+
+  camera = std::make_unique<Camera>(context.device, context.physical_device, builder);
+
   entities.emplace_back(std::make_unique<Sphere>());
-}
-
-void Scene::update(Window& window, double delta_time) {
-
-  camera->update(window, delta_time);
 }
 

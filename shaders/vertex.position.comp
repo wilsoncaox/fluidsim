@@ -5,30 +5,31 @@ layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 struct ParticleData {
     vec4 position;
     vec4 velocity;
-    vec4 density;
     vec4 predicted_position;
 };
 
-layout(std430, set = 1, binding = 1) buffer Read {
-    ParticleData[] in_particles;
+layout(std430, set = 0, binding = 0) buffer Read {
+    ParticleData[] data;
 } read;
 
 
-layout(std430, set = 0, binding = 1) buffer Write {
-    ParticleData[] out_particles;
+layout(std430, set = 1, binding = 0) buffer Write {
+    ParticleData[] data;
 } write;
 
-const uint particle_count = 20000;
-const float time = 0.01f;
-const float gravity = -9.8;
+layout(push_constant) uniform PushConstant {
+    uint particle_count;
+} pc;
+
+const float time = 0.01;
 
 void main() {
     uint id = gl_GlobalInvocationID.x;
-    if (id >= particle_count) {
+    if (id >= pc.particle_count) {
         return;
     }
 
-    ParticleData current = read.in_particles[id];
+    ParticleData current = read.data[id];
     current.predicted_position = current.position + current.velocity * time;
-    write.out_particles[id] = current;
+    write.data[id] = current;
 }

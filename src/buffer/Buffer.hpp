@@ -9,6 +9,8 @@ class Buffer {
     ~Buffer();
 
     void copyBuffer(Buffer& buffer, CommandPool& command_pool);
+    void copyBuffer(VkBuffer buffer, CommandPool& command_pool);
+    const VkDescriptorBufferInfo* get_info() { return &descriptor_buffer_info; };
 
     VkDeviceSize size;
     VkBuffer buffer = VK_NULL_HANDLE;
@@ -19,4 +21,5 @@ class Buffer {
     VkDevice device;
     VkPhysicalDevice physical_device;
     VkDeviceMemory memory = VK_NULL_HANDLE; 
+    VkDescriptorBufferInfo descriptor_buffer_info;
 };

@@ -1,9 +1,11 @@
 #pragma once
 
 #include "Window.hpp"
+#include "../command/CommandPool.hpp"
 
 #include <optional>
 #include <vector>
+#include <memory>
 
 
 struct QueueIndices {
@@ -20,6 +22,7 @@ class VulkanContext {
     ~VulkanContext();
 
     void init(Window& window);
+    CommandPool& get_commandpool() { return *commandpool; }
     VkPhysicalDeviceLimits find_device_limit();
 
     VkDevice device = VK_NULL_HANDLE;
@@ -28,6 +31,7 @@ class VulkanContext {
 
     QueueIndices queue_index;
     VkQueue queue = VK_NULL_HANDLE;
+
 
     bool active = false;
 
@@ -78,6 +82,5 @@ class VulkanContext {
     const std::vector<const char*> layers { "VK_LAYER_KHRONOS_validation" };
     const std::vector<const char*> device_extensions { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
-
-
+    std::unique_ptr<CommandPool> commandpool;
 };

@@ -1,0 +1,36 @@
+#version 450
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+struct ParticleData {
+    vec4 position;
+    vec4 velocity;
+    vec4 predicted_position;
+};
+
+layout(set = 0, binding = 0) buffer Read {
+    ParticleData[] data;
+} read;
+
+layout(set = 1, binding = 1) buffer Write {
+    uint offset;
+} write;
+
+layout(push_constant) uniform PushConstants {
+    uint particle_count;
+    uint index;
+} pc;
+
+void main() {
+    uint id = gl_GlobalInvocationID.x;
+    if (id >= pc.particle_count) {
+        return;
+    }
+    int key = int(read.data[id].position.w);
+
+    uint digit = (key >> pc.index) & 1u;
+
+    if (digit == 0) {
+        atomicAdd(write.offset, 1);
+    }
+}
